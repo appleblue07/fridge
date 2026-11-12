@@ -1,0 +1,12 @@
+{
+  "name": "fridge-chef-ai",
+  "version": "1.0.0",
+  "description": "AI 냉장고 파먹기 & 레시피 추천 반응형 웹앱",
+  "main": "script.js",
+  "scripts": {
+    "dev": "vercel dev --listen 3000"
+  },
+  "keywords": ["ai", "recipe", "fridge", "openrouter"],
+  "author": "",
+  "license": "MIT"
+}

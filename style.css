@@ -1,0 +1,367 @@
+/* ==========================================================================
+   FridgeChef AI - 메인 스타일시트 (style.css)
+   모바일 퍼스트 반응형 레이아웃 및 컴포넌트 스타일
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. CSS 변수 및 기본 리셋 (Variables & Reset)
+   -------------------------------------------------------------------------- */
+:root {
+  /* 주요 테마 색상 (식욕을 돋우는 웜톤 오렌지 및 차분한 뉴트럴 톤) */
+  --primary-color: #ff6b35;
+  --primary-hover: #fa5a1e;
+  --primary-light: #fff3ec;
+  --secondary-color: #2b2d42;
+  --secondary-hover: #1e202f;
+  --bg-color: #f7f9fb;
+  --card-bg: #ffffff;
+  --text-main: #1f2937;
+  --text-muted: #6b7280;
+  --border-color: #e5e7eb;
+  --border-focus: #ff6b35;
+  --danger-color: #ef4444;
+
+  /* 섀도우 및 둥글기 */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
+
+  /* 전환 효과 속도 */
+  --transition: all 0.2s ease-in-out;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+}
+
+/* --------------------------------------------------------------------------
+   2. 레이아웃 컨테이너 (Layout Containers)
+   -------------------------------------------------------------------------- */
+/* 앱 전체를 감싸는 반응형 컨테이너 (모바일은 100%, PC는 최대 680px로 모바일 앱 형태 유지) */
+.app-container {
+  width: 100%;
+  max-width: 680px;
+  min-height: 100vh;
+  background-color: var(--card-bg);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 상단 헤더 */
+.app-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: #ffffff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.logo-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo-icon {
+  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--primary-light);
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-md);
+}
+
+.logo-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.5px;
+}
+
+.logo-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* 메인 컨텐츠 영역 */
+.app-main {
+  flex: 1;
+  padding: 24px 20px;
+}
+
+/* 단계별 공통 카드 스타일 */
+.step-card {
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* 단계 뱃지 (1단계, 2단계 등) */
+.step-badge {
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 9999px;
+}
+
+.step-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.3px;
+}
+
+.step-guide {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+/* --------------------------------------------------------------------------
+   3. 이미지 업로드 드롭존 (Drop Zone Component)
+   -------------------------------------------------------------------------- */
+.drop-zone {
+  border: 2px dashed #cbd5e1;
+  border-radius: var(--radius-md);
+  background-color: #fafbfc;
+  padding: 32px 20px;
+  text-align: center;
+  transition: var(--transition);
+  cursor: pointer;
+  position: relative;
+  outline: none;
+}
+
+/* 마우스 호버 및 포커스 시 테두리 강조 */
+.drop-zone:hover,
+.drop-zone:focus-visible {
+  border-color: var(--primary-color);
+  background-color: var(--primary-light);
+}
+
+/* 드래그 오버 상태 (사용자가 파일을 드래그해서 위에 올렸을 때) */
+.drop-zone.drag-over {
+  border-color: var(--primary-color);
+  background-color: #ffe8dc;
+  transform: scale(1.01);
+}
+
+.upload-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.upload-icon {
+  font-size: 44px;
+  margin-bottom: 12px;
+}
+
+.upload-main-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.upload-sub-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+.upload-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 14px;
+}
+
+/* 업로드 버튼 그룹 */
+.upload-button-group {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   4. 버튼 공통 스타일 (Button Components)
+   -------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 20px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: var(--transition);
+  text-decoration: none;
+  min-height: 46px; /* 모바일 터치 최적화 */
+}
+
+/* 주요 주황색 액션 버튼 */
+.btn-primary {
+  background-color: var(--primary-color);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+/* 다크 네이비 보조 버튼 (카메라 촬영) */
+.btn-secondary {
+  background-color: var(--secondary-color);
+  color: #ffffff;
+}
+
+.btn-secondary:hover {
+  background-color: var(--secondary-hover);
+}
+
+/* 아웃라인 버튼 (사진 재선택) */
+.btn-outline {
+  background-color: #ffffff;
+  color: var(--text-main);
+  border-color: var(--border-color);
+}
+
+.btn-outline:hover {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+/* --------------------------------------------------------------------------
+   5. 이미지 미리보기 컴포넌트 (Preview Component)
+   -------------------------------------------------------------------------- */
+.preview-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+
+.image-wrapper {
+  width: 100%;
+  max-height: 360px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background-color: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#preview-image {
+  max-width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+  display: block;
+}
+
+/* 파일 메타 정보 (이름, 용량) */
+.file-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.file-name {
+  font-weight: 600;
+  color: var(--text-main);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   6. 유틸리티 및 푸터 (Utilities & Footer)
+   -------------------------------------------------------------------------- */
+/* 숨김 처리 */
+.hidden {
+  display: none !important;
+}
+
+.hidden-input {
+  display: none;
+}
+
+/* 하단 푸터 */
+.app-footer {
+  text-align: center;
+  padding: 20px;
+  border-top: 1px solid var(--border-color);
+  font-size: 12px;
+  color: var(--text-muted);
+  background-color: #ffffff;
+}
+
+.app-footer code {
+  background-color: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+/* --------------------------------------------------------------------------
+   7. 미디어 쿼리 (반응형 데스크톱 확장)
+   -------------------------------------------------------------------------- */
+@media (min-width: 768px) {
+  body {
+    padding: 30px 0;
+  }
+
+  .app-container {
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    min-height: auto;
+  }
+
+  .app-main {
+    padding: 32px 28px;
+  }
+
+  .drop-zone {
+    padding: 44px 24px;
+  }
+}
