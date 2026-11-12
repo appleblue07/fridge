@@ -28,6 +28,17 @@
 
     <!-- 메인 컨텐츠 영역 -->
     <main class="app-main">
+
+      <!-- 단계 전환 내비게이션 탭 -->
+      <nav class="step-nav" aria-label="단계 이동">
+        <button type="button" id="tab-step1" class="tab-btn active">
+          1단계: 식재료 인식
+        </button>
+        <button type="button" id="tab-step2" class="tab-btn">
+          2단계: 맞춤 레시피 추천
+        </button>
+      </nav>
+
       <!-- 1단계: 냉장고 이미지 업로드 및 식재료 인식 섹션 -->
       <section id="step1-section" class="step-card">
         
@@ -144,6 +155,208 @@
         <input type="file" id="input-file" accept="image/*" class="hidden-input" aria-hidden="true">
 
       </section>
+
+      <!-- 2단계: 식재료 기반 AI 맞춤 레시피 생성 섹션 (기본 숨김) -->
+      <section id="step2-section" class="step-card hidden">
+        <div class="step-header">
+          <span class="step-badge">2단계</span>
+          <h2 class="step-title">맞춤 레시피를 만들어 볼까요?</h2>
+        </div>
+        <p class="step-guide">
+          1단계에서 찾은 냉장고 재료와 사용자의 취향 조건을 바탕으로 AI 셰프가 실용적인 레시피 2~3종을 추천합니다.
+        </p>
+
+        <!-- 현재 선택된 식재료 확인 바 -->
+        <div class="selected-ingredients-box">
+          <div class="selected-header">
+            <span class="selected-title">
+              🥕 사용할 식재료 (<span id="step2-ingredient-count">0</span>개)
+            </span>
+            <button type="button" id="btn-edit-ingredients" class="btn-text">
+              ✏️ 재료 변경/추가
+            </button>
+          </div>
+          <div id="step2-ingredients-chips" class="selected-chips">
+            <!-- 1단계에서 저장된 재료 칩이 동적으로 표시됩니다 -->
+          </div>
+        </div>
+
+        <!-- 레시피 생성 조건 필터 폼 -->
+        <form id="recipe-filter-form" class="filter-form">
+          <h3 class="filter-heading">⚙️ 요리 조건 설정</h3>
+
+          <div class="filter-grid">
+            <!-- 조리 시간 -->
+            <div class="filter-item">
+              <label for="filter-time" class="filter-label">⏱️ 최대 조리 시간</label>
+              <select id="filter-time" class="filter-select">
+                <option value="15">15분 이내 (초스피드)</option>
+                <option value="30" selected>30분 이내 (표준)</option>
+                <option value="60">1시간 이내 (정성 가득)</option>
+                <option value="0">시간 상관없음</option>
+              </select>
+            </div>
+
+            <!-- 요리 종류 -->
+            <div class="filter-item">
+              <label for="filter-cuisine" class="filter-label">🍽️ 요리 스타일</label>
+              <select id="filter-cuisine" class="filter-select">
+                <option value="전체" selected>전체 (가장 잘 어울리는 요리)</option>
+                <option value="한식">한식</option>
+                <option value="양식">양식</option>
+                <option value="일식">일식</option>
+                <option value="중식">중식</option>
+                <option value="간식/야식">간식 / 야식</option>
+                <option value="다이어트/건강식">다이어트 / 건강식</option>
+              </select>
+            </div>
+
+            <!-- 난이도 -->
+            <div class="filter-item">
+              <label for="filter-difficulty" class="filter-label">⭐ 요리 난이도</label>
+              <select id="filter-difficulty" class="filter-select">
+                <option value="쉬움" selected>쉬움 (초보자 환영)</option>
+                <option value="보통">보통 (일반 가정식)</option>
+                <option value="고급">고급 (레스토랑 스타일)</option>
+              </select>
+            </div>
+
+            <!-- 조리 도구 (체크박스) -->
+            <div class="filter-item filter-full">
+              <span class="filter-label">🍳 보유 조리도구</span>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="tool-stove" value="가스레인지/인덕션" checked> 가스레인지/인덕션
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="tool-microwave" value="전자레인지" checked> 전자레인지
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="tool-airfryer" value="에어프라이어" checked> 에어프라이어
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- 레시피 생성 CTA 버튼 -->
+          <div class="filter-actions">
+            <button type="submit" id="btn-generate-recipes" class="btn btn-primary btn-block">
+              ✨ AI 맞춤 레시피 생성하기
+            </button>
+          </div>
+        </form>
+
+        <!-- 레시피 생성 로딩 상태 -->
+        <div id="recipe-loading" class="loading-state hidden">
+          <div class="spinner"></div>
+          <p class="loading-title">AI 셰프가 특급 레시피를 연구하고 있어요...</p>
+          <p class="loading-sub">OpenRouter Gemma 모델이 냉장고 재료를 맛있게 조합 중입니다 (약 5~10초 소요)</p>
+        </div>
+
+        <!-- 2단계 추천 레시피 결과 리스트 -->
+        <div id="recipe-results-container" class="recipe-results hidden">
+          <div class="results-bar">
+            <h3 class="results-title">
+              🍳 AI 추천 레시피 (<span id="recipes-count">0</span>종)
+            </h3>
+            <!-- 다른 레시피 재생성 버튼 -->
+            <button type="button" id="btn-regenerate" class="btn btn-outline btn-sm">
+              🔄 다른 레시피 추천
+            </button>
+          </div>
+
+          <!-- 레시피 카드들이 동적으로 추가되는 컨테이너 -->
+          <div id="recipe-cards-list" class="recipe-cards-list">
+            <!-- 동적 렌더링 -->
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- 레시피 상세 조리법 모달 (팝업 뷰) -->
+    <div id="recipe-detail-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-recipe-title">
+      <div class="modal-card">
+        <!-- 모달 헤더: 타이틀, 닫기 버튼 -->
+        <div class="modal-header">
+          <div>
+            <span id="modal-cuisine-badge" class="badge-cuisine">한식</span>
+            <h2 id="modal-recipe-title" class="modal-title">요리명</h2>
+          </div>
+          <button type="button" id="btn-close-modal" class="modal-close-btn" aria-label="모달 닫기">
+            &times;
+          </button>
+        </div>
+
+        <!-- 모달 바디: 스크롤 가능한 컨텐츠 -->
+        <div class="modal-body">
+          <p id="modal-recipe-summary" class="modal-summary">요리 한 줄 소개</p>
+
+          <!-- 메타 정보 배지들 (시간, 난이도, 인분) -->
+          <div class="modal-meta-row">
+            <span class="meta-pill">⏱️ <strong id="modal-time">20분</strong></span>
+            <span class="meta-pill">⭐ <strong id="modal-difficulty">쉬움</strong></span>
+            <span class="meta-pill">👥 <strong id="modal-servings">1인분</strong></span>
+          </div>
+
+          <!-- 3단계 연계: 북마크 저장 버튼 -->
+          <div class="modal-actions-bar">
+            <button type="button" id="btn-modal-bookmark" class="btn btn-outline btn-sm">
+              ⭐ 레시피 보관함에 저장
+            </button>
+          </div>
+
+          <!-- 섹션 1: 준비할 재료 (냉장고 재료 vs 추가 양념) -->
+          <div class="modal-section">
+            <h3 class="section-title">📦 재료 준비</h3>
+            
+            <div class="ingredients-split">
+              <!-- 냉장고 재료 -->
+              <div class="ingredient-group">
+                <span class="group-label">🧊 냉장고 속 재료</span>
+                <div id="modal-used-ingredients" class="chips-wrap">
+                  <!-- 동적 칩 -->
+                </div>
+              </div>
+
+              <!-- 기본 양념/추가 재료 -->
+              <div class="ingredient-group">
+                <span class="group-label">🧂 기본 양념 및 추가 재료</span>
+                <div id="modal-pantry-ingredients" class="chips-wrap">
+                  <!-- 동적 칩 -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 섹션 2: 단계별 조리 순서 & 인터랙티브 타이머 -->
+          <div class="modal-section">
+            <h3 class="section-title">👨‍🍳 단계별 조리 가이드</h3>
+            <div id="modal-steps-container" class="steps-timeline">
+              <!-- 동적 조리 단계 렌더링 -->
+            </div>
+          </div>
+
+          <!-- 섹션 3: 셰프의 꿀팁 -->
+          <div id="modal-chef-tip-box" class="chef-tip-box">
+            <span class="tip-icon">💡</span>
+            <div>
+              <strong class="tip-title">셰프의 특급 팁</strong>
+              <p id="modal-chef-tip" class="tip-content">꿀팁 내용</p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 모달 푸터 -->
+        <div class="modal-footer">
+          <button type="button" id="btn-modal-bottom-close" class="btn btn-secondary btn-block">
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
     </main>
 
     <!-- 하단 푸터 영역 -->
