@@ -66,12 +66,43 @@ body {
 
 /* 상단 헤더 */
 .app-header {
-  padding: 20px 24px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
   background-color: #ffffff;
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+.header-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 프로필/취향 설정 버튼 */
+.btn-profile {
+  background-color: var(--primary-light);
+  border: 1px solid rgba(255, 107, 53, 0.2);
+  color: var(--primary-color);
+  padding: 8px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+}
+
+.btn-profile:hover {
+  background-color: #ffd8c4;
+}
+
+.profile-btn-text {
+  font-size: 12px;
 }
 
 .logo-group {
@@ -1116,7 +1147,266 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   13. 유틸리티 및 푸터 (Utilities & Footer)
+   13. 3단계: 내 레시피 보관함 및 프로필 스타일 (Step 3 & Profile)
+   -------------------------------------------------------------------------- */
+/* 보관함 검색 및 필터 */
+.saved-search-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.saved-filter-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.saved-filter-btn {
+  border: 1px solid var(--border-color);
+  background-color: #ffffff;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: inherit;
+}
+
+.saved-filter-btn:hover {
+  background-color: #f1f5f9;
+}
+
+.saved-filter-btn.active {
+  background-color: var(--secondary-color);
+  color: #ffffff;
+  border-color: var(--secondary-color);
+}
+
+/* 빈 상태 (Empty State) */
+.empty-state {
+  padding: 44px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: #fafbfc;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-color);
+  margin-top: 10px;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.empty-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 360px;
+  margin-bottom: 18px;
+  line-height: 1.5;
+}
+
+/* 모달 내 나만의 조리 메모 및 별점 섹션 */
+.user-note-section {
+  background-color: #fffaf5;
+  border: 1px solid #fed7aa;
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rating-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rating-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.star-group {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: var(--transition);
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.star-btn.active {
+  color: #f59e0b;
+}
+
+.rating-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.cooked-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.cooked-toggle-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary-color);
+}
+
+.note-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.note-textarea {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  resize: vertical;
+  transition: var(--transition);
+}
+
+.note-textarea:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.15);
+}
+
+/* 프로필 모달 내 알레르기 칩 및 슬라이더 */
+.allergy-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.allergy-chip {
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: inherit;
+}
+
+.allergy-chip.active {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.allergy-add-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.spicy-slider {
+  width: 100%;
+  accent-color: var(--primary-color);
+  cursor: pointer;
+  height: 6px;
+}
+
+.spicy-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* 보관함 카드 메타 정보 및 삭제 버튼 */
+.card-saved-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px dashed var(--border-color);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
+.card-saved-badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.badge-cooked {
+  background-color: #dcfce7;
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.badge-rating {
+  color: #f59e0b;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.btn-card-delete {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: var(--transition);
+}
+
+.btn-card-delete:hover {
+  color: var(--danger-color);
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* --------------------------------------------------------------------------
+   14. 유틸리티 및 푸터 (Utilities & Footer)
    -------------------------------------------------------------------------- */
 /* 숨김 처리 */
 .hidden {

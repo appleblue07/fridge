@@ -3,6 +3,7 @@
  * FridgeChef AI - 클라이언트 메인 스크립트 (script.js)
  * 1단계: 냉장고 이미지 입력, 압축, OpenRouter AI 식재료 자동 인식 및 수동 편집
  * 2단계: 식재료 기반 필터 조건 설정, AI 맞춤 레시피 생성 및 조리 타이머 연동
+ * 3단계: 사용자 프로필/취향(알레르기/맵기) 관리 및 나만의 레시피 보관함/메모
  * ==========================================================================
  */
 
@@ -16,8 +17,26 @@
   // 탭 내비게이션 및 섹션
   const tabStep1 = document.getElementById('tab-step1');
   const tabStep2 = document.getElementById('tab-step2');
+  const tabStep3 = document.getElementById('tab-step3');
+  const tabSavedCount = document.getElementById('tab-saved-count');
   const step1Section = document.getElementById('step1-section');
   const step2Section = document.getElementById('step2-section');
+  const step3Section = document.getElementById('step3-section');
+
+  // [프로필/취향 모달 관련]
+  const btnOpenProfile = document.getElementById('btn-open-profile');
+  const profileModal = document.getElementById('profile-modal');
+  const btnCloseProfileModal = document.getElementById('btn-close-profile-modal');
+  const btnSaveProfile = document.getElementById('btn-save-profile');
+  const profileNickname = document.getElementById('profile-nickname');
+  const profileHousehold = document.getElementById('profile-household');
+  const allergyChipsWrap = document.getElementById('allergy-chips-wrap');
+  const inputCustomAllergy = document.getElementById('input-custom-allergy');
+  const btnAddCustomAllergy = document.getElementById('btn-add-custom-allergy');
+  const customAllergyChips = document.getElementById('custom-allergy-chips');
+  const profileSpicyRange = document.getElementById('profile-spicy-range');
+  const profileSpicyLabel = document.getElementById('profile-spicy-label');
+  const profileDiet = document.getElementById('profile-diet');
 
   // [1단계] 드롭존 및 프롬프트/미리보기 컨테이너
   const dropZone = document.getElementById('drop-zone');
@@ -73,7 +92,14 @@
   const recipeCardsListEl = document.getElementById('recipe-cards-list');
   const btnRegenerate = document.getElementById('btn-regenerate');
 
-  // [2단계] 레시피 상세 모달 UI 요소
+  // [3단계] 보관함 관련 요소
+  const inputSavedSearch = document.getElementById('input-saved-search');
+  const savedRecipesList = document.getElementById('saved-recipes-list');
+  const savedEmptyState = document.getElementById('saved-empty-state');
+  const btnGoToStep2 = document.getElementById('btn-go-to-step2');
+  const savedFilterBtns = document.querySelectorAll('.saved-filter-btn');
+
+  // [레시피 상세 모달 UI 요소]
   const recipeDetailModal = document.getElementById('recipe-detail-modal');
   const btnCloseModal = document.getElementById('btn-close-modal');
   const btnModalBottomClose = document.getElementById('btn-modal-bottom-close');
@@ -89,11 +115,18 @@
   const modalStepsContainer = document.getElementById('modal-steps-container');
   const modalChefTip = document.getElementById('modal-chef-tip');
 
+  // [모달 내 3단계 조리 메모 및 별점 요소]
+  const starBtns = document.querySelectorAll('.star-btn');
+  const ratingText = document.getElementById('rating-text');
+  const modalCookedCheckbox = document.getElementById('modal-cooked-checkbox');
+  const modalNoteTextarea = document.getElementById('modal-note-textarea');
+  const btnSaveNote = document.getElementById('btn-save-note');
+
   /* --------------------------------------------------------------------------
      2. 앱 내부 상태 관리 (State)
      -------------------------------------------------------------------------- */
   const state = {
-    currentTab: 'step1',       // 현재 활성 탭 ('step1' | 'step2')
+    currentTab: 'step1',       // 현재 활성 탭 ('step1' | 'step2' | 'step3')
     selectedFile: null,        // 선택된 원본 File 객체
     compressedBase64: null,    // 압축된 Base64 이미지
     previewUrl: null,          // ObjectURL 캐시
@@ -101,24 +134,31 @@
     isGeneratingRecipe: false, // 2단계 레시피 생성 진행 중 여부
     ingredients: [],           // 식재료 목록 [{ id, name, category, condition, isUserAdded }]
     confidenceNote: '',        // 1단계 AI 코멘트
-    recipes: [],               // 2단계 생성된 레시피 목록
-    activeRecipe: null,        // 모달에서 현재 열람 중인 레시피 객체
-    activeTimers: {}           // 활성 타이머 관리 { [stepIndex]: { intervalId, remainingSeconds, isRunning } }
+    recipes: [],               // 2단계 생성된 추천 레시피 목록
+    savedRecipes: [],          // 3단계 보관된 레시피 목록 [{ ...recipe, savedAt, rating, userNote, isCooked }]
+    savedFilterType: 'all',    // 보관함 필터 ('all' | 'cooked' | 'rated')
+    savedSearchQuery: '',      // 보관함 검색어
+    activeRecipe: null,        // 상세 모달에서 열람 중인 레시피 객체
+    activeTimers: {},          // 활성 타이머 관리 { [stepIndex]: { intervalId, remainingSeconds, isRunning } }
+    
+    // 사용자 프로필 및 취향 상태 (3단계)
+    userProfile: {
+      nickname: '',
+      householdSize: 2,
+      allergies: [],           // 기본 알레르기 태그 선택 목록
+      customAllergies: [],     // 사용자가 직접 입력한 기피 재료 목록
+      spicyLevel: 2,           // 1~5
+      dietPreference: '일반'
+    }
   };
 
   /* --------------------------------------------------------------------------
      3. 헬퍼 유틸리티 함수 (Helper Functions)
      -------------------------------------------------------------------------- */
-  /**
-   * 고유 ID 생성 (식재료 및 레시피 식별용)
-   */
   function generateId() {
     return 'id-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
   }
 
-  /**
-   * 파일 바이트 크기 포맷팅 (KB, MB)
-   */
   function formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -127,18 +167,12 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
-  /**
-   * 초 단위 시간을 "MM:SS" 형식으로 변환
-   */
   function formatTimerTime(seconds) {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   }
 
-  /**
-   * Web Audio API를 이용해 타이머 종료 시 맑은 알림음(Beep)을 재생합니다.
-   */
   function playTimerEndSound() {
     try {
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -146,7 +180,7 @@
       const gain = audioCtx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, audioCtx.currentTime); // 880Hz (A5)
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.5);
 
       gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
@@ -158,13 +192,10 @@
       osc.start();
       osc.stop(audioCtx.currentTime + 0.5);
     } catch (e) {
-      console.log('[FridgeChef] 오디오 재생 실패 (브라우저 정책):', e);
+      console.log('[FridgeChef] 오디오 재생 생략:', e);
     }
   }
 
-  /**
-   * 업로드 파일 이미지 유효성 검사
-   */
   function validateImageFile(file) {
     if (!file) return false;
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
@@ -184,45 +215,42 @@
   /* --------------------------------------------------------------------------
      4. 탭 전환 및 화면 제어 모듈 (Tab Navigation)
      -------------------------------------------------------------------------- */
-  /**
-   * 1단계와 2단계 화면 간 전환 처리
-   * @param {'step1' | 'step2'} targetTab - 전환할 대상 탭
-   */
   function switchTab(targetTab) {
     state.currentTab = targetTab;
 
+    // 모든 탭 버튼 비활성화
+    tabStep1.classList.remove('active');
+    tabStep2.classList.remove('active');
+    tabStep3.classList.remove('active');
+
+    // 모든 섹션 숨김
+    step1Section.classList.add('hidden');
+    step2Section.classList.add('hidden');
+    step3Section.classList.add('hidden');
+
     if (targetTab === 'step1') {
       tabStep1.classList.add('active');
-      tabStep2.classList.remove('active');
       step1Section.classList.remove('hidden');
-      step2Section.classList.add('hidden');
-    } else {
-      tabStep1.classList.remove('active');
+    } else if (targetTab === 'step2') {
       tabStep2.classList.add('active');
-      step1Section.classList.add('hidden');
       step2Section.classList.remove('hidden');
-
-      // 2단계 진입 시 선택된 식재료 바 동기화 갱신
       syncStep2IngredientsView();
+    } else if (targetTab === 'step3') {
+      tabStep3.classList.add('active');
+      step3Section.classList.remove('hidden');
+      renderSavedRecipes();
     }
 
-    // 화면 상단으로 부드럽게 스크롤
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  /**
-   * 2단계 상단에 표시될 식재료 칩들을 state.ingredients와 동기화합니다.
-   */
   function syncStep2IngredientsView() {
-    // 만약 state.ingredients가 비어있고 localStorage에 저장된 게 있다면 불러오기 시도
     if (state.ingredients.length === 0) {
       try {
         const cached = localStorage.getItem('fridge_ingredients');
-        if (cached) {
-          state.ingredients = JSON.parse(cached);
-        }
+        if (cached) state.ingredients = JSON.parse(cached);
       } catch (e) {
-        console.error('로컬 식재료 로드 실패:', e);
+        console.error('식재료 캐시 로드 실패:', e);
       }
     }
 
@@ -243,7 +271,90 @@
   }
 
   /* --------------------------------------------------------------------------
-     5. 클라이언트 이미지 Canvas 압축 모듈
+     5. 3단계: 사용자 프로필/취향 관리 모듈 (User Profile)
+     -------------------------------------------------------------------------- */
+  const spicyDescriptions = {
+    1: '1단계: 순한맛 (아이도 먹을 수 있는 맛)',
+    2: '2단계: 약간 매콤 (진라면 순한맛~보통맛)',
+    3: '3단계: 적당히 매움 (신라면 수준)',
+    4: '4단계: 얼큰하고 매움 (열라면 수준)',
+    5: '5단계: 극강의 매운맛 (불닭볶음면급)'
+  };
+
+  function loadUserProfile() {
+    try {
+      const saved = localStorage.getItem('user_profile');
+      if (saved) {
+        state.userProfile = { ...state.userProfile, ...JSON.parse(saved) };
+      }
+    } catch (e) {
+      console.warn('프로필 로드 실패:', e);
+    }
+    updateProfileModalUI();
+  }
+
+  function saveUserProfileToStorage() {
+    try {
+      localStorage.setItem('user_profile', JSON.stringify(state.userProfile));
+      console.log('[FridgeChef] 사용자 프로필 저장 완료:', state.userProfile);
+    } catch (e) {
+      console.error('프로필 저장 실패:', e);
+    }
+  }
+
+  function updateProfileModalUI() {
+    profileNickname.value = state.userProfile.nickname || '';
+    profileHousehold.value = String(state.userProfile.householdSize || 2);
+    profileSpicyRange.value = state.userProfile.spicyLevel || 2;
+    profileSpicyLabel.textContent = spicyDescriptions[state.userProfile.spicyLevel || 2];
+    profileDiet.value = state.userProfile.dietPreference || '일반';
+
+    // 알레르기 칩 활성화 상태 반영
+    document.querySelectorAll('.allergy-chip').forEach((chip) => {
+      const val = chip.dataset.value;
+      if (state.userProfile.allergies.includes(val)) {
+        chip.classList.add('active');
+      } else {
+        chip.classList.remove('active');
+      }
+    });
+
+    // 커스텀 기피 재료 렌더링
+    renderCustomAllergyChips();
+  }
+
+  function renderCustomAllergyChips() {
+    customAllergyChips.innerHTML = '';
+    (state.userProfile.customAllergies || []).forEach((item, idx) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip-blue';
+      chip.style.backgroundColor = '#fee2e2';
+      chip.style.borderColor = '#fca5a5';
+      chip.style.color = '#b91c1c';
+      chip.innerHTML = `${item} <button type="button" style="border:none;background:none;color:#b91c1c;cursor:pointer;font-weight:bold;margin-left:4px;">&times;</button>`;
+      
+      chip.querySelector('button').addEventListener('click', () => {
+        state.userProfile.customAllergies.splice(idx, 1);
+        renderCustomAllergyChips();
+      });
+
+      customAllergyChips.appendChild(chip);
+    });
+  }
+
+  function openProfileModal() {
+    loadUserProfile();
+    profileModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeProfileModal() {
+    profileModal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  /* --------------------------------------------------------------------------
+     6. 클라이언트 이미지 Canvas 압축 모듈
      -------------------------------------------------------------------------- */
   function compressAndEncodeImage(file, maxWidth = 1280, maxHeight = 1280, quality = 0.8) {
     return new Promise((resolve, reject) => {
@@ -266,7 +377,6 @@
           ctx.drawImage(img, 0, 0, width, height);
 
           const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-          console.log(`[FridgeChef] 압축 완료: ${img.width}x${img.height} -> ${width}x${height}`);
           resolve(compressedDataUrl);
         };
         img.onerror = (err) => reject(new Error('이미지 로드 실패: ' + err));
@@ -279,7 +389,7 @@
   }
 
   /* --------------------------------------------------------------------------
-     6. 1단계 이미지 미리보기 및 초기화
+     7. 1단계 이미지 미리보기 및 초기화
      -------------------------------------------------------------------------- */
   function displayImagePreview(file) {
     if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
@@ -326,7 +436,7 @@
   }
 
   /* --------------------------------------------------------------------------
-     7. 1단계 식재료 목록 렌더링 및 수동 추가/삭제
+     8. 1단계 식재료 목록 렌더링 및 수동 추가/삭제
      -------------------------------------------------------------------------- */
   function renderIngredients() {
     ingredientsListEl.innerHTML = '';
@@ -374,7 +484,6 @@
       ingredientsListEl.appendChild(chip);
     });
 
-    // 2단계 재료 바도 실시간 반영
     syncStep2IngredientsView();
   }
 
@@ -408,7 +517,7 @@
   }
 
   /* --------------------------------------------------------------------------
-     8. 1단계 OpenRouter Gemma AI 식재료 분석 연동
+     9. 1단계 OpenRouter Gemma AI 식재료 분석 연동
      -------------------------------------------------------------------------- */
   async function analyzeFridgeImage() {
     if (!state.selectedFile) {
@@ -424,11 +533,9 @@
     resultContainer.classList.add('hidden');
 
     try {
-      console.log('[FridgeChef] 이미지 압축 시작...');
       const base64Image = await compressAndEncodeImage(state.selectedFile);
       state.compressedBase64 = base64Image;
 
-      console.log('[FridgeChef] /api/recognize 호출 중...');
       const response = await fetch('/api/recognize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -471,7 +578,7 @@
           { id: generateId(), name: '양파', category: '채소/과일', condition: '1개 남음', isUserAdded: false },
           { id: generateId(), name: '김치', category: '양념/소스', condition: '숙성됨', isUserAdded: false }
         ];
-        state.confidenceNote = '테스트용 샘플 데이터가 성공적으로 로드되었습니다.';
+        state.confidenceNote = '테스트용 샘플 데이터가 로드되었습니다.';
         confidenceNoteEl.textContent = state.confidenceNote;
         renderIngredients();
         resultContainer.classList.remove('hidden');
@@ -486,13 +593,9 @@
   }
 
   /* --------------------------------------------------------------------------
-     9. 2단계 OpenRouter Gemma AI 맞춤 레시피 생성 연동
+     10. 2단계 OpenRouter Gemma AI 맞춤 레시피 생성 (3단계 프로필 조건 자동 병합)
      -------------------------------------------------------------------------- */
-  /**
-   * 필터 옵션을 수집하고 /api/recipe 서버리스 함수를 호출합니다.
-   */
   async function generateCustomRecipes() {
-    // 식재료가 없을 경우 방어
     if (state.ingredients.length === 0) {
       const goBack = confirm('선택된 식재료가 없습니다. 1단계로 이동하여 재료를 사진으로 인식하거나 직접 추가하시겠습니까?');
       if (goBack) switchTab('step1');
@@ -515,19 +618,32 @@
       cookingTools: tools
     };
 
-    // UI 로딩 상태 시작
+    // 3단계 사용자 취향 프로필 통합 (알레르기 합산 및 맵기 전달)
+    const combinedAllergies = [
+      ...(state.userProfile.allergies || []),
+      ...(state.userProfile.customAllergies || [])
+    ];
+
+    const profilePayload = {
+      householdSize: state.userProfile.householdSize,
+      allergies: combinedAllergies,
+      spicyLevel: state.userProfile.spicyLevel,
+      dietPreference: state.userProfile.dietPreference
+    };
+
     btnGenerateRecipes.disabled = true;
     recipeLoading.classList.remove('hidden');
     recipeResultsContainer.classList.add('hidden');
 
     try {
-      console.log('[FridgeChef] /api/recipe 호출 중...', filterPayload);
+      console.log('[FridgeChef] /api/recipe 호출 중...', { filterPayload, profilePayload });
       const response = await fetch('/api/recipe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ingredients: state.ingredients,
-          filters: filterPayload
+          filters: filterPayload,
+          userProfile: profilePayload
         })
       });
 
@@ -550,7 +666,6 @@
       );
 
       if (userWantsMock) {
-        // 테스트용 정교한 샘플 레시피 데이터
         state.recipes = [
           {
             id: 'mock-1',
@@ -580,12 +695,12 @@
               },
               {
                 step_number: 4,
-                instruction: '재료를 팬 한쪽으로 밀고, 빈 곳에 진간장 1큰술을 눌어붙이듯 끓인 후 계란을 깨 넣어 스크램블합니다.',
+                instruction: '재료를 팬 한쪽으로 밀고, 빈 곳에 진간장 1큰술을 둘러 계란을 깨 넣고 스크램블합니다.',
                 timer_seconds: 90
               },
               {
                 step_number: 5,
-                instruction: '밥 1공기를 넣고 주걱으로 자르듯 섞으며 센 불에서 2분간 볶은 뒤 참기름을 둘러 마무리합니다.',
+                instruction: '밥 1공기를 넣고 주걱으로 자르듯 섞으며 센 불에서 2분간 볶은 뒤 참기름을 둘러 완성합니다.',
                 timer_seconds: 120
               }
             ],
@@ -614,7 +729,7 @@
               },
               {
                 step_number: 3,
-                instruction: '물 400ml와 고춧가루, 설탕, 다진 마늘을 넣고 센 불에서 끓어오를 때까지 5분간 끓입니다.',
+                instruction: '물 400ml와 고춧가루, 설탕, 다진 마늘을 넣고 센 불에서 5분간 끓입니다.',
                 timer_seconds: 300
               },
               {
@@ -640,13 +755,13 @@
   }
 
   /* --------------------------------------------------------------------------
-     10. 2단계 추천 레시피 카드 목록 렌더링
+     11. 2단계 추천 레시피 카드 목록 렌더링
      -------------------------------------------------------------------------- */
   function renderRecipeCards() {
     recipeCardsListEl.innerHTML = '';
     recipesCountEl.textContent = state.recipes.length;
 
-    state.recipes.forEach((recipe, idx) => {
+    state.recipes.forEach((recipe) => {
       const card = document.createElement('div');
       card.className = 'recipe-card';
       card.tabIndex = 0;
@@ -656,12 +771,16 @@
       const usedCount = recipe.used_fridge_ingredients?.length || 0;
       const pantryCount = recipe.pantry_ingredients?.length || 0;
 
+      // 이미 저장된 레시피인지 여부 확인
+      const isSaved = state.savedRecipes.some((r) => r.title === recipe.title);
+
       card.innerHTML = `
         <div class="recipe-card-header">
           <div>
             <span class="badge-cuisine">${recipe.cuisine_type || '추천 요리'}</span>
             <h4 class="card-title">${recipe.title}</h4>
           </div>
+          <span style="font-size:18px;">${isSaved ? '⭐' : '☆'}</span>
         </div>
         <p class="card-summary">${recipe.summary || ''}</p>
         <div class="card-meta-row">
@@ -675,7 +794,6 @@
         </div>
       `;
 
-      // 카드 클릭 시 상세 모달 오픈
       card.addEventListener('click', () => openRecipeDetailModal(recipe));
       card.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -689,16 +807,123 @@
   }
 
   /* --------------------------------------------------------------------------
-     11. 2단계 레시피 상세 모달 및 인터랙티브 조리 타이머
+     12. 3단계: 내 레시피 보관함 로드 및 렌더링 (Saved Recipes)
      -------------------------------------------------------------------------- */
-  /**
-   * 레시피 상세 조리법 모달 열기
-   */
+  function loadSavedRecipesFromStorage() {
+    try {
+      const stored = localStorage.getItem('saved_recipes');
+      state.savedRecipes = stored ? JSON.parse(stored) : [];
+      tabSavedCount.textContent = state.savedRecipes.length;
+    } catch (e) {
+      console.warn('저장된 레시피 로드 실패:', e);
+      state.savedRecipes = [];
+    }
+  }
+
+  function saveSavedRecipesToStorage() {
+    try {
+      localStorage.setItem('saved_recipes', JSON.stringify(state.savedRecipes));
+      tabSavedCount.textContent = state.savedRecipes.length;
+    } catch (e) {
+      console.error('레시피 목록 저장 실패:', e);
+    }
+  }
+
+  function renderSavedRecipes() {
+    loadSavedRecipesFromStorage();
+    savedRecipesList.innerHTML = '';
+
+    // 검색어 및 카테고리 필터링
+    let filtered = [...state.savedRecipes];
+
+    if (state.savedSearchQuery.trim()) {
+      const q = state.savedSearchQuery.trim().toLowerCase();
+      filtered = filtered.filter((r) => {
+        const titleMatch = r.title.toLowerCase().includes(q);
+        const ingredientMatch = (r.used_fridge_ingredients || []).some((i) => i.toLowerCase().includes(q));
+        return titleMatch || ingredientMatch;
+      });
+    }
+
+    if (state.savedFilterType === 'cooked') {
+      filtered = filtered.filter((r) => r.isCooked);
+    } else if (state.savedFilterType === 'rated') {
+      filtered = filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    }
+
+    // 빈 상태 표시 토글
+    if (filtered.length === 0) {
+      savedEmptyState.classList.remove('hidden');
+      return;
+    }
+
+    savedEmptyState.classList.add('hidden');
+
+    filtered.forEach((recipe) => {
+      const card = document.createElement('div');
+      card.className = 'recipe-card';
+      card.tabIndex = 0;
+      card.setAttribute('role', 'button');
+
+      const ratingStars = recipe.rating ? '★'.repeat(recipe.rating) + '☆'.repeat(5 - recipe.rating) : '평가 없음';
+      const cookedBadge = recipe.isCooked ? '<span class="badge-cooked">🍳 요리해봄</span>' : '';
+      const noteBadge = recipe.userNote ? '<span class="badge-note">📝 메모 있음</span>' : '';
+
+      card.innerHTML = `
+        <div class="recipe-card-header">
+          <div>
+            <span class="badge-cuisine">${recipe.cuisine_type || '보관된 요리'}</span>
+            <h4 class="card-title">${recipe.title}</h4>
+          </div>
+          <button type="button" class="btn-card-delete" title="보관함에서 삭제" aria-label="삭제">&times;</button>
+        </div>
+        <p class="card-summary">${recipe.summary || ''}</p>
+        <div class="card-meta-row">
+          <span class="meta-pill">⏱️ ${recipe.cooking_time_minutes}분</span>
+          <span class="meta-pill">⭐ ${recipe.difficulty}</span>
+          <span class="badge-rating">${ratingStars}</span>
+        </div>
+        <div class="card-saved-meta">
+          <div class="card-saved-badges">
+            ${cookedBadge}
+            ${noteBadge}
+          </div>
+          <span>${recipe.savedAt ? new Date(recipe.savedAt).toLocaleDateString() : '저장됨'}</span>
+        </div>
+      `;
+
+      // 카드 클릭 시 모달 열기
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-card-delete')) return;
+        openRecipeDetailModal(recipe);
+      });
+
+      // 개별 삭제 버튼
+      card.querySelector('.btn-card-delete').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm(`'${recipe.title}' 레시피를 보관함에서 삭제하시겠습니까?`)) {
+          deleteRecipeFromStorage(recipe.title);
+        }
+      });
+
+      savedRecipesList.appendChild(card);
+    });
+  }
+
+  function deleteRecipeFromStorage(title) {
+    state.savedRecipes = state.savedRecipes.filter((r) => r.title !== title);
+    saveSavedRecipesToStorage();
+    renderSavedRecipes();
+    renderRecipeCards(); // 2단계 별표 표시 동기화
+  }
+
+  /* --------------------------------------------------------------------------
+     13. 레시피 상세 모달 및 3단계 조리 메모/별점 연동
+     -------------------------------------------------------------------------- */
   function openRecipeDetailModal(recipe) {
     state.activeRecipe = recipe;
-    clearAllTimers(); // 이전 활성 타이머 정리
+    clearAllTimers();
 
-    // 기본 정보 바인딩
     modalCuisineBadge.textContent = recipe.cuisine_type || '맞춤 요리';
     modalRecipeTitle.textContent = recipe.title;
     modalRecipeSummary.textContent = recipe.summary || '';
@@ -706,7 +931,11 @@
     modalDifficulty.textContent = recipe.difficulty;
     modalServings.textContent = recipe.servings || '1인분';
 
-    // 재료 준비 목록 바인딩 (냉장고 재료)
+    // 저장 여부 확인 및 버튼 라벨 업데이트
+    const isAlreadySaved = state.savedRecipes.some((r) => r.title === recipe.title);
+    updateBookmarkButtonUI(isAlreadySaved);
+
+    // 재료 준비 목록 바인딩
     modalUsedIngredients.innerHTML = '';
     (recipe.used_fridge_ingredients || []).forEach((name) => {
       const chip = document.createElement('span');
@@ -715,7 +944,6 @@
       modalUsedIngredients.appendChild(chip);
     });
 
-    // 재료 준비 목록 바인딩 (기본 양념)
     modalPantryIngredients.innerHTML = '';
     (recipe.pantry_ingredients || []).forEach((name) => {
       const chip = document.createElement('span');
@@ -724,7 +952,7 @@
       modalPantryIngredients.appendChild(chip);
     });
 
-    // 단계별 조리 순서 렌더링
+    // 단계별 조리 순서 및 타이머
     modalStepsContainer.innerHTML = '';
     (recipe.steps || []).forEach((step, index) => {
       const stepItem = document.createElement('div');
@@ -749,7 +977,6 @@
         stepBody.appendChild(stepTip);
       }
 
-      // 조리 타이머 위젯 (timer_seconds가 있는 경우)
       if (step.timer_seconds && step.timer_seconds > 0) {
         const timerWidget = createTimerWidget(index, step.timer_seconds);
         stepBody.appendChild(timerWidget);
@@ -760,17 +987,18 @@
       modalStepsContainer.appendChild(stepItem);
     });
 
-    // 셰프 특급 팁 바인딩
     modalChefTip.textContent = recipe.chef_tip || '특별한 비법 없이도 정성을 담으면 훌륭한 요리가 됩니다!';
 
-    // 모달 표시
+    // 3단계 나만의 조리 메모 및 별점 데이터 복원
+    const savedEntry = state.savedRecipes.find((r) => r.title === recipe.title) || recipe;
+    modalNoteTextarea.value = savedEntry.userNote || '';
+    modalCookedCheckbox.checked = Boolean(savedEntry.isCooked);
+    updateStarRatingUI(savedEntry.rating || 0);
+
     recipeDetailModal.classList.remove('hidden');
-    document.body.style.overflow = 'hidden'; // 배경 스크롤 방지
+    document.body.style.overflow = 'hidden';
   }
 
-  /**
-   * 상세 모달 닫기
-   */
   function closeRecipeDetailModal() {
     recipeDetailModal.classList.add('hidden');
     document.body.style.overflow = '';
@@ -778,15 +1006,99 @@
     state.activeRecipe = null;
   }
 
-  /**
-   * 단계별 조리 카운트다운 타이머 위젯 컴포넌트 생성
-   */
+  function updateBookmarkButtonUI(isSaved) {
+    if (isSaved) {
+      btnModalBookmark.innerHTML = '★ 보관함에 저장됨 (저장 해제)';
+      btnModalBookmark.style.borderColor = 'var(--primary-color)';
+      btnModalBookmark.style.color = 'var(--primary-color)';
+    } else {
+      btnModalBookmark.innerHTML = '⭐ 레시피 보관함에 저장';
+      btnModalBookmark.style.borderColor = '';
+      btnModalBookmark.style.color = '';
+    }
+  }
+
+  function toggleRecipeBookmark() {
+    if (!state.activeRecipe) return;
+
+    const existingIndex = state.savedRecipes.findIndex((r) => r.title === state.activeRecipe.title);
+
+    if (existingIndex > -1) {
+      // 이미 저장된 경우 -> 해제
+      state.savedRecipes.splice(existingIndex, 1);
+      saveSavedRecipesToStorage();
+      updateBookmarkButtonUI(false);
+      renderSavedRecipes();
+      renderRecipeCards();
+      alert(`'${state.activeRecipe.title}' 레시피가 보관함에서 해제되었습니다.`);
+    } else {
+      // 저장
+      const newEntry = {
+        ...state.activeRecipe,
+        savedAt: new Date().toISOString(),
+        rating: 0,
+        userNote: '',
+        isCooked: false
+      };
+      state.savedRecipes.unshift(newEntry);
+      saveSavedRecipesToStorage();
+      updateBookmarkButtonUI(true);
+      renderSavedRecipes();
+      renderRecipeCards();
+      alert(`⭐ [${state.activeRecipe.title}] 레시피가 보관함에 저장되었습니다!\n(3단계 '내 레시피 보관함'에서 언제든 확인 가능합니다.)`);
+    }
+  }
+
+  function updateStarRatingUI(rating) {
+    starBtns.forEach((btn) => {
+      const val = parseInt(btn.dataset.value, 10);
+      if (val <= rating) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    if (rating > 0) {
+      ratingText.textContent = `(${rating}점 / 5점)`;
+    } else {
+      ratingText.textContent = '(평가 전)';
+    }
+  }
+
+  function saveRecipeUserNoteAndRating() {
+    if (!state.activeRecipe) return;
+
+    // 만약 보관함에 아직 없다면 자동 보관 등록
+    let savedEntry = state.savedRecipes.find((r) => r.title === state.activeRecipe.title);
+    if (!savedEntry) {
+      savedEntry = {
+        ...state.activeRecipe,
+        savedAt: new Date().toISOString(),
+        rating: 0,
+        userNote: '',
+        isCooked: false
+      };
+      state.savedRecipes.unshift(savedEntry);
+      updateBookmarkButtonUI(true);
+    }
+
+    savedEntry.userNote = modalNoteTextarea.value.trim();
+    savedEntry.isCooked = modalCookedCheckbox.checked;
+
+    saveSavedRecipesToStorage();
+    renderSavedRecipes();
+    alert('📝 조리 메모와 평가가 성공적으로 저장되었습니다!');
+  }
+
+  /* --------------------------------------------------------------------------
+     14. 인터랙티브 조리 타이머 위젯 컴포넌트
+     -------------------------------------------------------------------------- */
   function createTimerWidget(stepIndex, initialSeconds) {
     const container = document.createElement('div');
     container.className = 'timer-widget';
     container.id = `timer-widget-${stepIndex}`;
 
-    // 상태 등록
     state.activeTimers[stepIndex] = {
       initialSeconds: initialSeconds,
       remainingSeconds: initialSeconds,
@@ -811,18 +1123,15 @@
     resetBtn.className = 'timer-btn timer-btn-reset';
     resetBtn.textContent = '리셋';
 
-    // 타이머 시작/일시정지 토글
     startBtn.addEventListener('click', () => {
       const timer = state.activeTimers[stepIndex];
       if (!timer) return;
 
       if (timer.isRunning) {
-        // 일시정지
         clearInterval(timer.intervalId);
         timer.isRunning = false;
         startBtn.textContent = '▶️ 재개';
       } else {
-        // 시작
         timer.isRunning = true;
         startBtn.textContent = '⏸️ 일시정지';
         container.classList.remove('timer-pulse');
@@ -843,7 +1152,6 @@
       }
     });
 
-    // 타이머 리셋
     resetBtn.addEventListener('click', () => {
       const timer = state.activeTimers[stepIndex];
       if (!timer) return;
@@ -864,104 +1172,171 @@
     return container;
   }
 
-  /**
-   * 모달 닫힘 시 작동 중인 모든 타이머 인터벌 정리
-   */
   function clearAllTimers() {
     Object.values(state.activeTimers).forEach((timer) => {
-      if (timer.intervalId) {
-        clearInterval(timer.intervalId);
-      }
+      if (timer.intervalId) clearInterval(timer.intervalId);
     });
     state.activeTimers = {};
   }
 
   /* --------------------------------------------------------------------------
-     12. 이벤트 리스너 등록 (Event Listeners)
+     15. 이벤트 리스너 등록 (Event Listeners)
      -------------------------------------------------------------------------- */
-  // 1) 탭 내비게이션 클릭 이벤트
+  // 1) 탭 내비게이션
   tabStep1.addEventListener('click', () => switchTab('step1'));
   tabStep2.addEventListener('click', () => switchTab('step2'));
+  tabStep3.addEventListener('click', () => switchTab('step3'));
 
-  // 2) 1단계 -> 2단계 이동 CTA 버튼
   btnToRecipe.addEventListener('click', () => {
     if (state.ingredients.length === 0) {
       alert('최소 1개 이상의 식재료가 등록되어 있어야 레시피를 추천받을 수 있습니다.');
       return;
     }
-
     try {
       localStorage.setItem('fridge_ingredients', JSON.stringify(state.ingredients));
     } catch (e) {
-      console.warn('로컬 스토리지 저장 오류:', e);
+      console.warn('저장 실패:', e);
     }
-
-    // 2단계 탭으로 전환
     switchTab('step2');
   });
 
-  // 3) 2단계에서 "재료 변경/추가" 클릭 시 1단계로 복귀
-  btnEditIngredients.addEventListener('click', () => {
-    switchTab('step1');
+  btnEditIngredients.addEventListener('click', () => switchTab('step1'));
+  btnGoToStep2.addEventListener('click', () => switchTab('step2'));
+
+  // 2) 프로필 모달 이벤트
+  btnOpenProfile.addEventListener('click', openProfileModal);
+  btnCloseProfileModal.addEventListener('click', closeProfileModal);
+  profileModal.addEventListener('click', (e) => {
+    if (e.target === profileModal) closeProfileModal();
   });
 
-  // 4) 2단계 맞춤 레시피 생성 폼 전송
+  // 알레르기 칩 토글
+  document.querySelectorAll('.allergy-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const val = chip.dataset.value;
+      const idx = state.userProfile.allergies.indexOf(val);
+      if (idx > -1) {
+        state.userProfile.allergies.splice(idx, 1);
+        chip.classList.remove('active');
+      } else {
+        state.userProfile.allergies.push(val);
+        chip.classList.add('active');
+      }
+    });
+  });
+
+  // 직접 기피 재료 추가
+  btnAddCustomAllergy.addEventListener('click', () => {
+    const val = inputCustomAllergy.value.trim();
+    if (!val) return;
+    if (!state.userProfile.customAllergies.includes(val)) {
+      state.userProfile.customAllergies.push(val);
+      renderCustomAllergyChips();
+    }
+    inputCustomAllergy.value = '';
+  });
+
+  // 맵기 슬라이더 실시간 라벨
+  profileSpicyRange.addEventListener('input', (e) => {
+    const val = parseInt(e.target.value, 10);
+    profileSpicyLabel.textContent = spicyDescriptions[val];
+    state.userProfile.spicyLevel = val;
+  });
+
+  // 프로필 저장 버튼
+  btnSaveProfile.addEventListener('click', () => {
+    state.userProfile.nickname = profileNickname.value.trim();
+    state.userProfile.householdSize = parseInt(profileHousehold.value, 10);
+    state.userProfile.dietPreference = profileDiet.value;
+    state.userProfile.spicyLevel = parseInt(profileSpicyRange.value, 10);
+
+    saveUserProfileToStorage();
+    closeProfileModal();
+    alert('👤 취향 및 프로필 설정이 저장되었습니다!\n다음 레시피 추천 시 알레르기 제외 및 맵기가 자동 적용됩니다.');
+  });
+
+  // 3) 2단계 레시피 생성 폼 및 재생성
   recipeFilterForm.addEventListener('submit', (e) => {
     e.preventDefault();
     generateCustomRecipes();
   });
 
-  // 5) 레시피 재생성(다른 레시피 추천) 버튼
-  btnRegenerate.addEventListener('click', () => {
-    generateCustomRecipes();
+  btnRegenerate.addEventListener('click', generateCustomRecipes);
+
+  // 4) 3단계 보관함 검색 및 필터 버튼
+  inputSavedSearch.addEventListener('input', (e) => {
+    state.savedSearchQuery = e.target.value;
+    renderSavedRecipes();
   });
 
-  // 6) 상세 모달 닫기 이벤트
+  savedFilterBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      savedFilterBtns.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.savedFilterType = btn.dataset.filter;
+      renderSavedRecipes();
+    });
+  });
+
+  // 5) 모달 상세 닫기 및 북마크 토글
   btnCloseModal.addEventListener('click', closeRecipeDetailModal);
   btnModalBottomClose.addEventListener('click', closeRecipeDetailModal);
-
-  // 모달 배경(오버레이) 클릭 시 닫기
   recipeDetailModal.addEventListener('click', (e) => {
-    if (e.target === recipeDetailModal) {
-      closeRecipeDetailModal();
-    }
+    if (e.target === recipeDetailModal) closeRecipeDetailModal();
   });
 
-  // ESC 키 누르면 모달 닫기
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !recipeDetailModal.classList.contains('hidden')) {
-      closeRecipeDetailModal();
+    if (e.key === 'Escape') {
+      if (!recipeDetailModal.classList.contains('hidden')) closeRecipeDetailModal();
+      if (!profileModal.classList.contains('hidden')) closeProfileModal();
     }
   });
 
-  // 7) 3단계 연계: 상세 모달에서 북마크(저장) 버튼 클릭
-  btnModalBookmark.addEventListener('click', () => {
-    if (!state.activeRecipe) return;
+  btnModalBookmark.addEventListener('click', toggleRecipeBookmark);
 
-    try {
-      const stored = localStorage.getItem('saved_recipes');
-      const savedList = stored ? JSON.parse(stored) : [];
+  // 별점 평가 클릭 이벤트
+  starBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const val = parseInt(btn.dataset.value, 10);
+      updateStarRatingUI(val);
 
-      // 이미 저장된 레시피인지 중복 체크
-      const alreadySaved = savedList.some((r) => r.title === state.activeRecipe.title);
-      if (alreadySaved) {
-        alert(`'${state.activeRecipe.title}'(은)는 이미 레시피 보관함에 저장되어 있습니다.`);
-        return;
+      if (state.activeRecipe) {
+        let savedEntry = state.savedRecipes.find((r) => r.title === state.activeRecipe.title);
+        if (!savedEntry) {
+          savedEntry = {
+            ...state.activeRecipe,
+            savedAt: new Date().toISOString(),
+            rating: val,
+            userNote: '',
+            isCooked: false
+          };
+          state.savedRecipes.unshift(savedEntry);
+          updateBookmarkButtonUI(true);
+        } else {
+          savedEntry.rating = val;
+        }
+        saveSavedRecipesToStorage();
+        renderSavedRecipes();
       }
+    });
+  });
 
-      savedList.unshift({
-        ...state.activeRecipe,
-        savedAt: new Date().toISOString()
-      });
+  // 메모 저장 버튼
+  btnSaveNote.addEventListener('click', saveRecipeUserNoteAndRating);
 
-      localStorage.setItem('saved_recipes', JSON.stringify(savedList));
-      alert(`⭐ [${state.activeRecipe.title}] 레시피가 보관함에 저장되었습니다!\n(3단계 '내 레시피 보관함'에서 언제든 확인 가능합니다.)`);
-    } catch (err) {
-      console.error('레시피 저장 실패:', err);
+  // 요리 완료 체크박스
+  modalCookedCheckbox.addEventListener('change', () => {
+    if (state.activeRecipe) {
+      let savedEntry = state.savedRecipes.find((r) => r.title === state.activeRecipe.title);
+      if (savedEntry) {
+        savedEntry.isCooked = modalCookedCheckbox.checked;
+        saveSavedRecipesToStorage();
+        renderSavedRecipes();
+      }
     }
   });
 
-  // 8) 1단계 카메라/갤러리/드롭존 등 이벤트 바인딩
+  // 6) 1단계 카메라/갤러리/드롭존 이벤트 바인딩
   btnCamera.addEventListener('click', (e) => {
     e.stopPropagation();
     inputCamera.click();
@@ -1034,7 +1409,10 @@
     addManualIngredient(inputIngredientName.value);
   });
 
-  // 초기 로드 시 기존 식재료 캐시 확인
+  // 초기 로드 시 프로필 및 보관함, 기존 식재료 캐시 확인
+  loadUserProfile();
+  loadSavedRecipesFromStorage();
+
   try {
     const cached = localStorage.getItem('fridge_ingredients');
     if (cached) {
@@ -1042,8 +1420,8 @@
       renderIngredients();
     }
   } catch (e) {
-    console.warn('초기 캐시 읽기 실패:', e);
+    console.warn('초기 식재료 로드 실패:', e);
   }
 
-  console.log('[FridgeChef] 1단계 및 2단계 모듈 초기화 완료.');
+  console.log('[FridgeChef] 1~3단계 전체 모듈 통합 초기화 완료.');
 })();
