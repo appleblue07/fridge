@@ -48,21 +48,13 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // OpenRouter 비전 분석 요청 페이로드 구성
-    const payload = {
-      model: modelName,
-      messages: [
-        {
-          role: 'system',
-          content: '당신은 냉장고 이미지에서 식재료를 식별하는 전문 비전 AI입니다. 주어진 냉장고 사진을 면밀히 분석하여 식별되는 모든 식재료를 순수 JSON 형식으로만 응답하세요. 마크다운 코드블록(```json)이나 다른 설명 없이 순수 JSON 문자열만 출력해야 합니다.'
-        },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `이 냉장고 사진에서 보이는 모든 식재료(채소, 과일, 육류, 해산물, 유제품, 가공식품, 양념/소스 등)를 빠짐없이 찾아내세요.
-반드시 아래 JSON 스키마 형식으로만 응답하세요:
+    // Gemma 모델은 별도의 system role보다 user 턴 내에 지침을 결합할 때 인식률이 가장 높습니다.
+    const promptText = `[지침]
+당신은 냉장고 이미지에서 식재료를 식별하는 전문 비전 AI입니다.
+주어진 냉장고 사진 속에서 식별되는 모든 식재료(채소, 과일, 육류, 해산물, 유제품, 가공식품, 양념/소스 등)를 빠짐없이 찾아내세요.
+반드시 마크다운 코드블록(\`\`\`json)이나 부가 설명 없이 순수 JSON 규격으로만 응답해야 합니다.
+
+[응답 JSON 스키마 형식]
 {
   "ingredients": [
     {
@@ -71,8 +63,18 @@ module.exports = async function handler(req, res) {
       "condition": "추정 상태 또는 잔량 (예: 신선함, 개봉됨, 1/2 남음)"
     }
   ],
-  "confidence_note": "식별 신뢰도 및 전반적인 냉장고 상태에 대한 1줄 요약 코멘트"
-}`
+  "confidence_note": "식별 신뢰도 및 전반적인 냉장고 상태 1줄 요약 코멘트"
+}`;
+
+    const payload = {
+      model: modelName,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: promptText
             },
             {
               type: 'image_url',
@@ -83,11 +85,11 @@ module.exports = async function handler(req, res) {
           ]
         }
       ],
-      temperature: 0.2, // 정밀하고 일관된 식별을 위해 낮은 온도값 설정
+      temperature: 0.2, // 일관성 있는 JSON 추출을 위한 낮은 온도
       max_tokens: 1500
     };
 
-    console.log(`[FridgeChef API] OpenRouter 호출 시작 - 모델: ${modelName}`);
+    console.log(`[FridgeChef API] OpenRouter 비전 호출 시작 - 모델: ${modelName}`);
 
     // OpenRouter API 호출
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -95,27 +97,35 @@ module.exports = async function handler(req, res) {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://fridgechef.local',
+        'HTTP-Referer': 'https://fridgechef.vercel.app',
         'X-Title': 'FridgeChef AI'
       },
       body: JSON.stringify(payload)
     });
 
-    // HTTP 에러 응답 처리 (레이트 리밋 429 등)
+    // HTTP 에러 응답 처리
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`[FridgeChef API] OpenRouter 오류 (${response.status}):`, errorText);
 
+      let detailMsg = response.statusText;
+      try {
+        const errorJson = JSON.parse(errorText);
+        detailMsg = errorJson.error?.message || errorJson.message || errorText;
+      } catch {
+        detailMsg = errorText;
+      }
+
       if (response.status === 429) {
         return res.status(429).json({
           success: false,
-          error: 'OpenRouter 무료 모델 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.'
+          error: 'OpenRouter 무료 모델 호출 한도를 일시적으로 초과했습니다. 1~2분 후 다시 시도해주세요.'
         });
       }
 
       return res.status(response.status).json({
         success: false,
-        error: `OpenRouter API 통신 오류: ${response.statusText}`
+        error: `OpenRouter 오류 (${response.status}): ${detailMsg}`
       });
     }
 
@@ -129,25 +139,43 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // AI 응답 텍스트에서 JSON 추출 (혹시 백틱 마크다운이 포함된 경우 대비)
-    let parsedResult;
+    // AI 응답 텍스트에서 JSON 추출 및 견고한 파싱 (객체 or 배열 모두 대응)
+    let parsedResult = null;
+
+    // 1) 순수 JSON 직접 파싱 시도
     try {
-      // 1) 순수 JSON 직접 파싱 시도
       parsedResult = JSON.parse(rawContent.trim());
-    } catch {
-      // 2) 마크다운 백틱 및 정규식 추출 파싱 시도
+    } catch {}
+
+    // 2) 마크다운 백틱 및 정규식 추출 ({ ... })
+    if (!parsedResult) {
       const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        parsedResult = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('AI 응답에서 유효한 JSON을 찾을 수 없습니다.');
+        try {
+          parsedResult = JSON.parse(jsonMatch[0]);
+        } catch {}
       }
+    }
+
+    // 3) 배열 형태([ ... ])로 응답이 온 경우 방어
+    if (!parsedResult) {
+      const arrayMatch = rawContent.match(/\[[\s\S]*\]/);
+      if (arrayMatch) {
+        try {
+          const arr = JSON.parse(arrayMatch[0]);
+          parsedResult = { ingredients: arr };
+        } catch {}
+      }
+    }
+
+    if (!parsedResult) {
+      throw new Error(`AI 응답에서 유효한 JSON을 파싱하지 못했습니다. (응답: ${rawContent.slice(0, 80)}...)`);
     }
 
     // 결과 정규화 및 응답 반환
     return res.status(200).json({
       success: true,
-      ingredients: parsedResult.ingredients || [],
+      ingredients: Array.isArray(parsedResult.ingredients) ? parsedResult.ingredients : [],
       confidence_note: parsedResult.confidence_note || '식재료 분석이 완료되었습니다.'
     });
 

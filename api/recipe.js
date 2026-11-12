@@ -27,7 +27,7 @@ module.exports = async function handler(req, res) {
   try {
     const { ingredients, filters, userProfile } = req.body || {};
 
-    // 유효성 검사: 식재료가 최소 1개 이상 전달되어야 함
+    // 유효성 검사
     if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
       return res.status(400).json({
         success: false,
@@ -55,7 +55,7 @@ module.exports = async function handler(req, res) {
       ? filters.cookingTools.join(', ')
       : '가스레인지/인덕션, 전자레인지, 에어프라이어';
 
-    // 식재료 텍스트 정리 (예: "대파(신선함), 계란(6개 남음)")
+    // 식재료 텍스트 정리
     const ingredientListText = ingredients.map((item) => {
       const condition = item.condition ? `(${item.condition})` : '';
       return `${item.name}${condition}`;
@@ -76,26 +76,25 @@ module.exports = async function handler(req, res) {
       profileConditionText = `${allergyText}${spicyText}${servingsText}`;
     }
 
-    // OpenRouter 프롬프트 구성
-    const systemPrompt = `당신은 대한민국 최고의 요리 연구가이자 냉장고 파먹기 전문 셰프입니다.
-사용자가 가진 [냉장고 식재료]를 최대한 낭비 없이 소진할 수 있는 실용적이고 맛있는 맞춤형 레시피 2~3개를 추천해야 합니다.
-반드시 마크다운 코드블록(\`\`\`json)이나 다른 설명 없이 순수한 JSON 형식으로만 응답해야 합니다.
+    const fullPrompt = `[역할 및 지침]
+당신은 대한민국 최고의 요리 연구가이자 냉장고 파먹기 전문 셰프입니다.
+사용자가 가진 [냉장고 식재료]를 최대한 낭비 없이 소진할 수 있는 실용적이고 맛있는 맞춤형 레시피 2~3개를 추천하세요.
+반드시 마크다운 코드블록(\`\`\`json)이나 부가 설명 없이 순수한 JSON 규격으로만 응답해야 합니다.
 
-[작성 및 추천 지침]
-1. 냉장고 재료를 주재료로 적극 활용하세요.
-2. 소금, 설탕, 간장, 식용유, 물, 참기름 등 일반 가정의 기본 상비 양념은 필요 시 pantry_ingredients 항목으로 명시할 수 있습니다.
-3. 단계별 조리 과정(steps)은 초보자도 쉽게 따라 할 수 있도록 행동 단위로 상세하고 친절하게 작성하세요.
-4. 조리 과정 중 타이머가 필요한 단계(예: "중불에서 5분간 볶기", "약불에서 10분간 뜸들이기")에는 timer_seconds(초 단위 숫자)를 반드시 포함하세요.
-5. 2~3가지 레시피는 서로 다른 개성(예: 초간단 볶음 요리 vs 든든한 찌개/국 요리 vs 퓨전/간식)을 갖도록 구성하세요.`;
+[작성 원칙]
+1. 냉장고 식재료를 주재료로 적극 활용하세요.
+2. 소금, 설탕, 간장, 식용유, 물, 참기름 등 일반 가정 상비 양념은 pantry_ingredients 항목으로 명시하세요.
+3. 단계별 조리 과정(steps)은 초보자도 쉽게 따라 할 수 있도록 행동 단위로 상세히 작성하세요.
+4. 조리 중 타이머가 필요한 단계에는 timer_seconds(초 단위 숫자)를 포함하세요.
 
-    const userPrompt = `[보유 냉장고 식재료]: ${ingredientListText}
+[보유 냉장고 식재료]: ${ingredientListText}
 [조리 희망 조건]:
 - 최대 조리시간: ${timeLimit}
 - 선호 요리 스타일: ${cuisineType}
 - 난이도: ${difficulty}
 - 사용 가능 조리도구: ${cookingTools}${profileConditionText}
 
-위 조건에 꼭 맞는 레시피 2~3개를 아래 JSON 스키마 규격으로만 응답해주세요:
+위 조건에 꼭 맞는 레시피 2~3개를 아래 JSON 스키마 형식으로만 응답하세요:
 {
   "recipes": [
     {
@@ -112,15 +111,15 @@ module.exports = async function handler(req, res) {
         {
           "step_number": 1,
           "instruction": "대파는 송송 썰어 준비합니다.",
-          "tip": "흰 대와 초록 잎 부분을 골고루 섞어 쓰면 색과 향이 좋아집니다."
+          "tip": "대파의 흰 대 부분을 넣으면 향이 훨씬 좋습니다."
         },
         {
           "step_number": 2,
-          "instruction": "팬에 식용유를 두르고 썰어둔 대파를 중약불에서 2분간 볶아 향긋한 파기름을 만듭니다.",
+          "instruction": "팬에 식용유를 두르고 대파를 중약불에서 2분간 볶아 파기름을 냅니다.",
           "timer_seconds": 120
         }
       ],
-      "chef_tip": "셰프의 특급 팁 또는 대체 재료 조언"
+      "chef_tip": "셰프의 특급 팁"
     }
   ]
 }`;
@@ -128,10 +127,9 @@ module.exports = async function handler(req, res) {
     const payload = {
       model: modelName,
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
+        { role: 'user', content: fullPrompt }
       ],
-      temperature: 0.3, // 일관성 있고 현실적인 레시피 출력을 위해 적정 온도 설정
+      temperature: 0.3,
       max_tokens: 2500
     };
 
@@ -143,7 +141,7 @@ module.exports = async function handler(req, res) {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://fridgechef.local',
+        'HTTP-Referer': 'https://fridgechef.vercel.app',
         'X-Title': 'FridgeChef AI'
       },
       body: JSON.stringify(payload)
@@ -152,6 +150,14 @@ module.exports = async function handler(req, res) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`[FridgeChef API] OpenRouter 오류 (${response.status}):`, errorText);
+
+      let detailMsg = response.statusText;
+      try {
+        const errorJson = JSON.parse(errorText);
+        detailMsg = errorJson.error?.message || errorJson.message || errorText;
+      } catch {
+        detailMsg = errorText;
+      }
 
       if (response.status === 429) {
         return res.status(429).json({
@@ -162,7 +168,7 @@ module.exports = async function handler(req, res) {
 
       return res.status(response.status).json({
         success: false,
-        error: `OpenRouter API 통신 오류: ${response.statusText}`
+        error: `OpenRouter 오류 (${response.status}): ${detailMsg}`
       });
     }
 
@@ -176,27 +182,42 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // AI 응답 텍스트에서 JSON 추출 및 파싱
-    let parsedResult;
+    // AI 응답 텍스트에서 JSON 추출 및 견고한 파싱
+    let parsedResult = null;
     try {
       parsedResult = JSON.parse(rawContent.trim());
-    } catch {
+    } catch {}
+
+    if (!parsedResult) {
       const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        parsedResult = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('AI 응답에서 유효한 JSON을 찾을 수 없습니다.');
+        try {
+          parsedResult = JSON.parse(jsonMatch[0]);
+        } catch {}
       }
     }
 
-    // 성공 응답 반환
+    if (!parsedResult) {
+      const arrayMatch = rawContent.match(/\[[\s\S]*\]/);
+      if (arrayMatch) {
+        try {
+          const arr = JSON.parse(arrayMatch[0]);
+          parsedResult = { recipes: arr };
+        } catch {}
+      }
+    }
+
+    if (!parsedResult) {
+      throw new Error('AI 응답에서 유효한 레시피 JSON을 찾을 수 없습니다.');
+    }
+
     return res.status(200).json({
       success: true,
       recipes: parsedResult.recipes || []
     });
 
   } catch (error) {
-    console.error('[FridgeChef API] 레시피 생성 중 예외 발생:', error);
+    console.error('[FridgeChef API] 레시피 생성 예외:', error);
     return res.status(500).json({
       success: false,
       error: error.message || '서버 내부 오류가 발생했습니다.'
