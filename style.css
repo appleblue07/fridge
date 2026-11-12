@@ -314,8 +314,242 @@ body {
   white-space: nowrap;
 }
 
+/* 미리보기 작업 버튼 그룹 */
+.preview-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+/* 작은 크기 버튼 */
+.btn-sm {
+  padding: 8px 14px;
+  min-height: 38px;
+  font-size: 13px;
+}
+
+/* 너비 100% 블록 버튼 */
+.btn-block {
+  width: 100%;
+}
+
 /* --------------------------------------------------------------------------
-   6. 유틸리티 및 푸터 (Utilities & Footer)
+   6. AI 분석 로딩 상태 (Loading State)
+   -------------------------------------------------------------------------- */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 36px 20px;
+  text-align: center;
+  background-color: #fafbfc;
+  border-radius: var(--radius-md);
+  margin-top: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.spinner {
+  width: 44px;
+  height: 44px;
+  border: 4px solid var(--primary-light);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.loading-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   7. 식재료 분석 결과 목록 및 수동 편집 영역 (Result Container)
+   -------------------------------------------------------------------------- */
+.result-container {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px dashed var(--border-color);
+}
+
+.result-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.result-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.count-badge {
+  background-color: var(--primary-color);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.result-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* AI 신뢰도 코멘트 배너 */
+.confidence-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background-color: var(--primary-light);
+  border-left: 4px solid var(--primary-color);
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 18px;
+  font-size: 13px;
+  color: #8c3b1a;
+}
+
+.banner-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.banner-text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+/* 식재료 태그 칩 그리드 */
+.ingredients-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+  min-height: 50px;
+}
+
+/* 개별 식재료 칩 카드 */
+.ingredient-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--text-main);
+  transition: var(--transition);
+}
+
+.ingredient-chip:hover {
+  background-color: #e2e8f0;
+}
+
+/* 카테고리별 칩 뱃지 */
+.chip-category {
+  font-size: 11px;
+  font-weight: 600;
+  background-color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  color: var(--text-muted);
+}
+
+.chip-name {
+  font-weight: 600;
+}
+
+.chip-condition {
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* 사용자가 직접 추가한 태그 강조 */
+.ingredient-chip.user-added {
+  background-color: #e0f2fe;
+  border-color: #bae6fd;
+}
+
+.ingredient-chip.user-added .chip-category {
+  color: #0369a1;
+}
+
+/* 태그 삭제 버튼 */
+.chip-remove {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.chip-remove:hover {
+  color: var(--danger-color);
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* 식재료 직접 수동 추가 입력 폼 */
+.add-ingredient-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.input-text {
+  flex: 1;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 14px;
+  outline: none;
+  transition: var(--transition);
+  font-family: inherit;
+}
+
+.input-text:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.15);
+}
+
+/* 2단계 이동 버튼 래퍼 */
+.next-step-wrapper {
+  margin-top: 10px;
+}
+
+/* --------------------------------------------------------------------------
+   8. 유틸리티 및 푸터 (Utilities & Footer)
    -------------------------------------------------------------------------- */
 /* 숨김 처리 */
 .hidden {
